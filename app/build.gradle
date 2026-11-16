@@ -1,0 +1,27 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'app.yawmi'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'app.yawmi'
+        minSdk 26
+        targetSdk 34
+        versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger() + 100)
+        versionName '2.' + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+    }
+    signingConfigs {
+        yawmi {
+            storeFile rootProject.file('signing/yawmi.p12')
+            storeType 'PKCS12'
+            storePassword 'yawmi-app-key'
+            keyAlias 'yawmi'
+            keyPassword 'yawmi-app-key'
+        }
+    }
+    buildTypes {
+        release { minifyEnabled false; signingConfig signingConfigs.yawmi }
+        debug { signingConfig signingConfigs.yawmi }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    lint { abortOnError false; checkReleaseBuilds false }
+}
