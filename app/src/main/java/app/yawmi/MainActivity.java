@@ -1,12 +1,25 @@
 package app.yawmi;
 
 import android.app.Activity;
+import android.app.KeyguardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Insets;
+import android.hardware.biometrics.BiometricManager;
+import android.hardware.biometrics.BiometricPrompt;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CancellationSignal;
+import android.os.SystemClock;
+import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.widget.FrameLayout;
 
 import org.json.JSONObject;
 
@@ -18,21 +31,121 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
+    private static final int SPACE = 0xFF060914;
+    private static final long RELOCK_MS = 60_000;
     private WebView web;
+    private boolean unlocked, asking;
+    private long leftAt;
+
+    private SharedPreferences prefs() {
+        return getSharedPreferences("yawmi", Context.MODE_PRIVATE);
+    }
+
+    private boolean lockOn() {
+        return prefs().getBoolean("lock", true) && getSystemService(KeyguardManager.class).isDeviceSecure();
+    }
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         Alarms.ensureChannel(this);
+        if (lockOn()) getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+
         web = new WebView(this);
-        web.setBackgroundColor(0xFF060914);
+        web.setBackgroundColor(SPACE);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setTextZoom(100);
+        s.setAllowContentAccess(false);
+        s.setAllowFileAccess(false);
+        s.setSaveFormData(false);
         web.addJavascriptInterface(new Bridge(), "Android");
+
+        // Android 15+ draws apps behind the system bars: keep the page clear of them and of the keyboard.
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(SPACE);
+        root.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override
+            public WindowInsets onApplyWindowInsets(View v, WindowInsets in) {
+                if (Build.VERSION.SDK_INT >= 30) {
+                    Insets i = in.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
+                    v.setPadding(i.left, i.top, i.right, i.bottom);
+                } else {
+                    v.setPadding(in.getSystemWindowInsetLeft(), in.getSystemWindowInsetTop(), in.getSystemWindowInsetRight(), in.getSystemWindowInsetBottom());
+                }
+                return in;
+            }
+        });
+        setContentView(root);
+        web.setVisibility(lockOn() ? View.INVISIBLE : View.VISIBLE);
         web.loadUrl("file:///android_asset/index.html");
-        setContentView(web);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (leftAt != 0 && SystemClock.elapsedRealtime() - leftAt > RELOCK_MS) unlocked = false;
+        if (lockOn() && !unlocked) {
+            web.setVisibility(View.INVISIBLE);
+            ask();
+        } else {
+            web.setVisibility(View.VISIBLE);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (!asking) leftAt = SystemClock.elapsedRealtime();
+    }
+
+    private void open() {
+        asking = false;
+        unlocked = true;
+        leftAt = 0;
+        web.setVisibility(View.VISIBLE);
+    }
+
+    /** Asks for the phone's own fingerprint, face or screen-lock code. */
+    private void ask() {
+        if (asking) return;
+        asking = true;
+        if (Build.VERSION.SDK_INT >= 30) {
+            BiometricPrompt p = new BiometricPrompt.Builder(this)
+                    .setTitle("يومي")
+                    .setSubtitle("افتح القفل للمتابعة")
+                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                    .build();
+            p.authenticate(new CancellationSignal(), getMainExecutor(), new BiometricPrompt.AuthenticationCallback() {
+                @Override
+                public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult r) {
+                    open();
+                }
+
+                @Override
+                public void onAuthenticationError(int code, CharSequence msg) {
+                    asking = false;
+                    finish();
+                }
+            });
+        } else {
+            Intent i = getSystemService(KeyguardManager.class).createConfirmDeviceCredentialIntent("يومي", "افتح القفل للمتابعة");
+            if (i == null) open();
+            else startActivityForResult(i, 7);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != 7) return;
+        if (res == RESULT_OK) open();
+        else {
+            asking = false;
+            finish();
+        }
     }
 
     @Override
@@ -59,13 +172,30 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public boolean getLock() {
+            return prefs().getBoolean("lock", true);
+        }
+
+        @JavascriptInterface
+        public void setLock(final boolean on) {
+            prefs().edit().putBoolean("lock", on).apply();
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (on && lockOn()) getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+                    else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+                }
+            });
+        }
+
+        @JavascriptInterface
         public void askNotify() {
             if (Build.VERSION.SDK_INT >= 33
                     && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
+                        if (!asking) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
                     }
                 });
             }

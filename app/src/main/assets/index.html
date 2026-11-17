@@ -578,6 +578,7 @@ function drawModal(){const m=modal;if(!m)return;const d=m.d||{};let h='';
     <span class="lbl">المظهر</span><div class="pick">${[['auto','تلقائي مع الشمس'],['light','صباحي'],['dark','مسائي']].map(([k,n])=>`<button class="${S.set.theme===k?'on':''}" data-act="theme" data-v="${k}">${n}</button>`).join('')}</div>
     <span class="lbl">الورد اليومي من القرآن (صفحات)</span><div class="pick">${[1,2,4,5,10,20].map(n=>`<button class="${n===S.quran.target?'on':''}" data-act="tgt" data-v="${n}">${n}${n===20?' (جزء)':''}</button>`).join('')}</div>
     ${NATIVE?`<span class="lbl">التنبيهات (الصلوات الخمس، الأذكار، الورد)</span><div class="pick"><button class="${S.set.notif!==false?'on':''}" data-act="notif" data-v="1">مفعّلة</button><button class="${S.set.notif===false?'on':''}" data-act="notif" data-v="">مطفية</button></div>
+    <span class="lbl">قفل التطبيق (بصمة أو رمز التلفون)</span><div class="pick"><button class="${nativeLock()?'on':''}" data-act="lock" data-v="1">مقفول</button><button class="${nativeLock()?'':'on'}" data-act="lock" data-v="">بدون قفل</button></div>
     <label class="lbl" for="f-key">مفتاح Anthropic API للشات (بيضل على تلفونك بس)</label><input class="in" id="f-key" data-ch="apikey" type="password" autocomplete="off" placeholder="sk-ant-..." value="${esc(apiKey())}">`:''}
     <span class="lbl">أعمالك الإضافية</span>${S.custom.length?S.custom.map(x=>`<div class="citem"><span>${esc(x.emoji)} ${esc(x.name)}</span><button class="btn red" style="padding:6px 12px" data-act="cdel" data-id="${x.id}">${m.del===x.id?'متأكد؟':'احذف'}</button></div>`).join(''):'<div class="mut">ما ضفت أعمال. ضيف من قسم النوافل.</div>'}
     <div class="mfoot"><button class="btn" data-act="close">تمام</button></div>`}
@@ -705,6 +706,7 @@ document.addEventListener('click',e=>{
     case 'cdel':if(m.del!==id){m.del=id;drawModal();break}S.custom=S.custom.filter(c=>c.id!==id);for(const k in S.log){if(S.log[k].c)delete S.log[k].c[id];clean(k)}m.del=null;save();refresh();break;
     case 'settings':openM({kind:'settings'});break;
     case 'theme':S.set.theme=v;save();refresh();break;
+    case 'lock':try{Android.setLock(!!v)}catch(e){}refresh();break;
     case 'notif':S.set.notif=!!v;save();if(v){try{Android.askNotify()}catch(e){}}syncAlarms();refresh();break;
     case 'mode':{const o=['auto','light','dark'],n=o[(o.indexOf(S.set.theme)+1)%3];S.set.theme=n;save();refresh();toast(n==='auto'?'تلقائي: صباحي بالنهار ومسائي بعد المغرب':n==='light'?'المود الصباحي':'المود المسائي');break}
     case 'tgt':S.quran.target=+v;save();syncAlarms();refresh();break;
@@ -801,6 +803,7 @@ function nativeSample(input,opts){opts=opts||{};return new Promise((ok,err)=>{co
   if(opts.signal)opts.signal.addEventListener('abort',()=>{if(chatCbs[id]){delete chatCbs[id];err({code:'cancelled'})}});
   try{Android.chat(key,JSON.stringify({model:'claude-sonnet-5-5',max_tokens:1024,messages:msgs}),id)}catch(e){delete chatCbs[id];err({code:'upstream_error'})}})}
 nativeSample.json=async(input,opts)=>{const r=await nativeSample(input,opts);const t=r.text,a=Math.min(...['{','['].map(c=>t.indexOf(c)).filter(i=>i>=0)),b=Math.max(t.lastIndexOf('}'),t.lastIndexOf(']'));try{return JSON.parse(t.slice(a,b+1))}catch(e){throw{code:'invalid_json',text:t}}};
+function nativeLock(){try{return !!Android.getLock()}catch(e){return false}}
 function apiKey(){try{return localStorage.getItem('yawmi-key')||''}catch(e){return ''}}
 function nativeAI(){if(NATIVE)sampleFn=apiKey()?nativeSample:null}
 function syncAlarms(){if(!NATIVE)return;const out=[],now=Date.now(),M=6e4;
