@@ -28,5 +28,6 @@ for line in open("tools/ayat-list.txt"):
                 "tafsir": by["ar.muyassar"]["text"],
                 "check_text": r.get("arabic_text", ""), "check_tafsir": r.get("translation", "")})
     time.sleep(0.4)
+import os; os.makedirs("data", exist_ok=True)
 json.dump(out, open("data/ayat.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 print("wrote", len(out), "verses")
