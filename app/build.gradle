@@ -13,9 +13,9 @@ android {
         yawmi {
             storeFile rootProject.file('signing/yawmi.p12')
             storeType 'PKCS12'
-            storePassword 'yawmi-app-key'
+            storePassword System.getenv('KEYSTORE_PASS') ?: ''
             keyAlias 'yawmi'
-            keyPassword 'yawmi-app-key'
+            keyPassword System.getenv('KEYSTORE_PASS') ?: ''
         }
     }
     buildTypes {

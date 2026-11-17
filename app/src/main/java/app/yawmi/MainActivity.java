@@ -171,6 +171,20 @@ public class MainActivity extends Activity {
             Alarms.apply(MainActivity.this);
         }
 
+        /** Hands the backup text to the phone's share sheet so it can be saved anywhere. */
+        @JavascriptInterface
+        public void share(final String text) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType("text/plain");
+                    i.putExtra(Intent.EXTRA_TEXT, text);
+                    startActivity(Intent.createChooser(i, "نسخة احتياطية من يومي"));
+                }
+            });
+        }
+
         @JavascriptInterface
         public boolean getLock() {
             return prefs().getBoolean("lock", true);
