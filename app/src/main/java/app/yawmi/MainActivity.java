@@ -20,6 +20,8 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.FrameLayout;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 
 import org.json.JSONObject;
 
@@ -41,8 +43,16 @@ public class MainActivity extends Activity {
         return getSharedPreferences("yawmi", Context.MODE_PRIVATE);
     }
 
+    private KeyguardManager keyguard() {
+        return (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+    }
+
+    /** The lock needs a fingerprint, face, PIN, pattern or password set on the phone itself. */
     private boolean lockOn() {
-        return prefs().getBoolean("lock", true) && getSystemService(KeyguardManager.class).isDeviceSecure();
+        if (!prefs().getBoolean("lock", true)) return false;
+        KeyguardManager k = keyguard();
+        if (k == null) return false;
+        return Build.VERSION.SDK_INT >= 23 ? k.isDeviceSecure() : k.isKeyguardSecure();
     }
 
     @Override
@@ -66,19 +76,26 @@ public class MainActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(SPACE);
         root.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-            @Override
-            public WindowInsets onApplyWindowInsets(View v, WindowInsets in) {
-                if (Build.VERSION.SDK_INT >= 30) {
+        if (Build.VERSION.SDK_INT >= 35) {
+            root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets in) {
                     Insets i = in.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
                     v.setPadding(i.left, i.top, i.right, i.bottom);
-                } else {
-                    v.setPadding(in.getSystemWindowInsetLeft(), in.getSystemWindowInsetTop(), in.getSystemWindowInsetRight(), in.getSystemWindowInsetBottom());
+                    return in;
                 }
-                return in;
-            }
-        });
+            });
+        }
         setContentView(root);
+        if (Build.VERSION.SDK_INT >= 33) {
+            // Android 13+: the back gesture no longer calls onBackPressed for apps built for Android 16.
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, new OnBackInvokedCallback() {
+                @Override
+                public void onBackInvoked() {
+                    goBack();
+                }
+            });
+        }
         web.setVisibility(lockOn() ? View.INVISIBLE : View.VISIBLE);
         web.loadUrl("file:///android_asset/index.html");
     }
@@ -131,7 +148,8 @@ public class MainActivity extends Activity {
                 }
             });
         } else {
-            Intent i = getSystemService(KeyguardManager.class).createConfirmDeviceCredentialIntent("يومي", "افتح القفل للمتابعة");
+            KeyguardManager k = keyguard();
+            Intent i = k == null ? null : k.createConfirmDeviceCredentialIntent("يومي", "افتح القفل للمتابعة");
             if (i == null) open();
             else startActivityForResult(i, 7);
         }
@@ -148,10 +166,14 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void goBack() {
+        if (web != null && web.canGoBack()) web.goBack();
+        else finish();
+    }
+
     @Override
     public void onBackPressed() {
-        if (web != null && web.canGoBack()) web.goBack();
-        else super.onBackPressed();
+        goBack();
     }
 
     private void reply(final String id, final int status, final String body) {
