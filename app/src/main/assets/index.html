@@ -238,7 +238,6 @@ button{cursor:pointer;border:0;background:none;text-align:inherit}
   <div class="top">
     <div class="d"><div class="hj" id="hj"></div><div class="gr" id="gr"></div></div>
     <div class="sync" id="sync"><i></i><span></span></div>
-    <button class="modebtn" data-act="mode" id="modeb" aria-label="غيّر المود"></button>
     <button class="iconbtn" data-act="settings" aria-label="الإعدادات" id="gear"></button>
   </div>
   <main id="view"></main>
@@ -359,7 +358,7 @@ const _tc={};function timesFor(d){const c=cityRow(),m=S.set.method||c[4],k=key(d
 function phase(T,now){return now<T.fajr?'night':now<T.sunrise?'fajr':now<T.dhuhr?'duha':now<T.asr?'dhuhr':now<T.maghrib?'asr':now<T.isha?'maghrib':'night'}
 function nextPrayer(T,now){for(const [id] of PR)if(now<T[id])return{id,at:T[id]};return{id:'fajr',at:timesFor(ago(-1)).fajr}}
 function applyMode(){const T=timesFor(new Date()),now=new Date(),th=S.set.theme;
-  const night=th==='dark'||(th!=='light'&&(now<T.sunrise||now>=T.maghrib));
+  const night=true;
   document.documentElement.dataset.mode=night?'night':'day'}
 
 /* ================= scoring ================= */
@@ -556,7 +555,6 @@ function vStats(){const n=Math.max(1,spanDays()),N=Math.min(30,Math.max(7,n));
 function render(){applyMode();const d=tab==='today'?fromKey(cur):new Date();
   $('#hj').textContent=hijri(d,{day:'numeric',month:'long',year:'numeric'});
   $('#gr').textContent=dfmt(d,{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  {const th=S.set.theme;$('#modeb').innerHTML=svg(th==='dark'?'isha':th==='light'?'dhuhr':'today',17)+(th==='dark'?'مسائي':th==='light'?'صباحي':'تلقائي')}
   $('#view').innerHTML=tab==='today'?vToday():tab==='life'?vLife():tab==='quran'?vQuran():vStats();
   $('#fab').innerHTML=sampleFn?`<button class="fab" data-act="chat">${svg('spark',18)}اسأل المساعد</button>`:'';
   $('#tabs').innerHTML=[['today','يومي'],['life','حياتي'],['quran','القرآن'],['stats','تقدّمي']].map(([id,nm])=>`<button data-tab="${id}" class="${tab===id?'on':''}">${svg(id,21)}${nm}</button>`).join('')}
@@ -575,7 +573,6 @@ function drawModal(){const m=modal;if(!m)return;const d=m.d||{};let h='';
     h=`<h3>الإعدادات</h3><label class="lbl" for="f-city">مدينتك (لمواقيت الصلاة)</label><select class="in" id="f-city" data-ch="city">${CITIES.map(x=>`<option value="${x[0]}" ${x[0]===c[0]?'selected':''}>${x[1]}</option>`).join('')}</select>
     <label class="lbl" for="f-method">طريقة الحساب</label><select class="in" id="f-method" data-ch="method">${Object.entries(METHODS).map(([k,v])=>`<option value="${k}" ${k===mm?'selected':''}>${v.n}</option>`).join('')}</select>
     <div class="mut" style="margin-top:6px">المواقيت محسوبة فلكيًا وممكن تفرق دقيقة أو دقيقتين عن أذان مسجدك، وبتنعرض بتوقيت جهازك.</div>
-    <span class="lbl">المظهر</span><div class="pick">${[['auto','تلقائي مع الشمس'],['light','صباحي'],['dark','مسائي']].map(([k,n])=>`<button class="${S.set.theme===k?'on':''}" data-act="theme" data-v="${k}">${n}</button>`).join('')}</div>
     <span class="lbl">الورد اليومي من القرآن (صفحات)</span><div class="pick">${[1,2,4,5,10,20].map(n=>`<button class="${n===S.quran.target?'on':''}" data-act="tgt" data-v="${n}">${n}${n===20?' (جزء)':''}</button>`).join('')}</div>
     ${NATIVE?`<span class="lbl">التنبيهات (الصلوات الخمس، الأذكار، الورد)</span><div class="pick"><button class="${S.set.notif!==false?'on':''}" data-act="notif" data-v="1">مفعّلة</button><button class="${S.set.notif===false?'on':''}" data-act="notif" data-v="">مطفية</button></div>
     <span class="lbl">قفل التطبيق (بصمة أو رمز التلفون)</span><div class="pick"><button class="${nativeLock()?'on':''}" data-act="lock" data-v="1">مقفول</button><button class="${nativeLock()?'':'on'}" data-act="lock" data-v="">بدون قفل</button></div>
